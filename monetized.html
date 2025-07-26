@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Fractal Studio - Create & Export</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Arial', sans-serif;
+        }
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #info {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            pointer-events: none;
+        }
+        #controls {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            width: 250px;
+        }
+        #controls label {
+            display: block;
+            margin: 5px 0;
+        }
+        #controls input, #controls select {
+            width: 100%;
+        }
+        .export-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #444;
+        }
+        .export-btn {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .export-btn:hover {
+            background: #45a049;
+        }
+        .premium-btn {
+            background: #FFD700;
+            color: #000;
+        }
+        .premium-btn:hover {
+            background: #FFC700;
+        }
+        #exportModal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 10px;
+            color: white;
+            z-index: 1000;
+            text-align: center;
+        }
+        #exportModal h2 {
+            color: #FFD700;
+        }
+        .price-tag {
+            font-size: 24px;
+            color: #4CAF50;
+            margin: 10px 0;
+        }
+        #watermark {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="info">
+        <h3>Quantum Fractal Studio</h3>
+        <p>FPS: <span id="fps">0</span></p>
+        <p>Position: (<span id="posX">0.00</span>, <span id="posY">0.00</span>)</p>
+        <p>Zoom: <span id="zoom">1.0</span>x</p>
+    </div>
+    
+    <div id="controls">
+        <h4>Fractal Parameters</h4>
+        <label>Type: <select id="ctrl-type">
+            <option value="mandelbrot">Mandelbrot</option>
+            <option value="julia">Julia Set</option>
+            <option value="burning">Burning Ship</option>
+            <option value="quantum">Quantum Hybrid</option>
+        </select></label>
+        <label>Iterations: <input type="range" id="ctrl-iterations" min="10" max="1000" value="100"></label>
+        <label>Color Scheme: <select id="ctrl-color">
+            <option value="0">Quantum Spectrum</option>
+            <option value="1">Fire Gradient</option>
+            <option value="2">Ice Crystal</option>
+            <option value="3">Matrix Code</option>
+            <option value="4">Psychedelic</option>
+            <option value="5">Monochrome</option>
+        </select></label>
+        <label>Animation: <input type="range" id="ctrl-speed" min="0" max="5" step="0.1" value="1"></label>
+        
+        <div class="export-section">
+            <h4>Export Options</h4>
+            <button class="export-btn" onclick="exportImage(1920, 1080, true)">Export HD (Free)</button>
+            <button class="export-btn premium-btn" onclick="showPremiumModal('4k')">Export 4K ($4.99)</button>
+            <button class="export-btn premium-btn" onclick="showPremiumModal('8k')">Export 8K ($9.99)</button>
+            <button class="export-btn premium-btn" onclick="showPremiumModal('nft')">Mint as NFT ($19.99)</button>
+        </div>
+    </div>
+    
+    <div id="exportModal">
+        <h2>Premium Export</h2>
+        <p id="exportDescription"></p>
+        <p class="price-tag" id="exportPrice"></p>
+        <button class="export-btn" onclick="processPremiumExport()">Purchase & Download</button>
+        <button class="export-btn" onclick="closeModal()">Cancel</button>
+    </div>
+    
+    <div id="watermark">Free Version - QuantumFractal.Studio</div>
+
+    <script>
+        // Canvas and WebGL setup
+        const canvas = document.getElementById('canvas');
+        const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true }) || 
+                   canvas.getContext('experimental-webgl', { preserveDrawingBuffer: true });
+        
+        if (!gl) {
+            alert('WebGL not supported!');
+            throw new Error('WebGL not supported');
+        }
+        
+        // Enhanced parameters
+        let params = {
+            type: 'mandelbrot',
+            iterations: 100,
+            zoom: 1.0,
+            offsetX: -0.5,
+            offsetY: 0.0,
+            speed: 1.0,
+            colorScheme: 0,
+            time: 0,
+            juliaC: { x: -0.7, y: 0.27015 }
+        };
+        
+        let currentExportType = '';
+        
+        // Enhanced vertex shader
+        const vertexShaderSource = `
+            attribute vec2 position;
+            varying vec2 vUv;
+            
+            void main() {
+                vUv = position * 0.5 + 0.5;
+                gl_Position = vec4(position, 0.0, 1.0);
+            }
+        `;
+        
+        // Enhanced fragment shader with multiple fractal types
+        const fragmentShaderSource = `
+            precision highp float;
+            
+            uniform float time;
+            uniform vec2 resolution;
+            uniform float iterations;
+            uniform float zoom;
+            uniform vec2 offset;
+            uniform int colorScheme;
+            uniform int fractalType;
+            uniform vec2 juliaC;
+            
+            varying vec2 vUv;
+            
+            vec3 hsv2rgb(vec3 c) {
+                vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+                vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+                return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+            }
+            
+            float mandelbrot(vec2 c) {
+                vec2 z = vec2(0.0);
+                for (float i = 0.0; i < 1000.0; i++) {
+                    if (i >= iterations) break;
+                    float x2 = z.x * z.x;
+                    float y2 = z.y * z.y;
+                    if (x2 + y2 > 4.0) return i / iterations;
+                    z = vec2(x2 - y2 + c.x, 2.0 * z.x * z.y + c.y);
+                }
+                return 0.0;
+            }
+            
+            float julia(vec2 z) {
+                for (float i = 0.0; i < 1000.0; i++) {
+                    if (i >= iterations) break;
+                    float x2 = z.x * z.x;
+                    float y2 = z.y * z.y;
+                    if (x2 + y2 > 4.0) return i / iterations;
+                    z = vec2(x2 - y2 + juliaC.x, 2.0 * z.x * z.y + juliaC.y);
+                }
+                return 0.0;
+            }
+            
+            float burningShip(vec2 c) {
+                vec2 z = vec2(0.0);
+                for (float i = 0.0; i < 1000.0; i++) {
+                    if (i >= iterations) break;
+                    z = abs(z);
+                    float x2 = z.x * z.x;
+                    float y2 = z.y * z.y;
+                    if (x2 + y2 > 4.0) return i / iterations;
+                    z = vec2(x2 - y2 + c.x, 2.0 * z.x * z.y + c.y);
+                }
+                return 0.0;
+            }
+            
+            vec3 getColor(float value) {
+                if (colorScheme == 0) {
+                    // Quantum spectrum
+                    vec3 a = vec3(0.5, 0.5, 0.5);
+                    vec3 b = vec3(0.5, 0.5, 0.5);
+                    vec3 c = vec3(1.0, 1.0, 1.0);
+                    vec3 d = vec3(0.263 + time * 0.01, 0.416, 0.557);
+                    return a + b * cos(6.28318 * (c * value + d));
+                } else if (colorScheme == 1) {
+                    // Fire
+                    return mix(vec3(0.0), mix(vec3(1.0, 0.0, 0.0), vec3(1.0, 1.0, 0.0), value), value);
+                } else if (colorScheme == 2) {
+                    // Ice
+                    return mix(vec3(0.0, 0.1, 0.3), vec3(0.7, 0.9, 1.0), value);
+                } else if (colorScheme == 3) {
+                    // Matrix
+                    return vec3(0.0, value * (0.8 + sin(time + value * 10.0) * 0.2), 0.0);
+                } else if (colorScheme == 4) {
+                    // Psychedelic
+                    return hsv2rgb(vec3(value + time * 0.1, 0.8, 1.0 - value * 0.5));
+                } else {
+                    // Monochrome
+                    return vec3(value);
+                }
+            }
+            
+            void main() {
+                vec2 c = (vUv - 0.5) * 3.0;
+                c.x *= resolution.x / resolution.y;
+                c = c / zoom + offset;
+                
+                float value = 0.0;
+                
+                if (fractalType == 0) {
+                    value = mandelbrot(c);
+                } else if (fractalType == 1) {
+                    value = julia(c);
+                } else if (fractalType == 2) {
+                    value = burningShip(c);
+                } else {
+                    // Quantum hybrid
+                    float m = mandelbrot(c);
+                    float j = julia(c * 0.5);
+                    value = mix(m, j, sin(time * 0.5) * 0.5 + 0.5);
+                }
+                
+                vec3 color = getColor(value);
+                
+                // Add glow effect
+                color += vec3(0.1, 0.2, 0.3) * exp(-value * 3.0) * 0.3;
+                
+                gl_FragColor = vec4(color, 1.0);
+            }
+        `;
+        
+        // Shader compilation functions
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error('Shader error:', gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+        
+        function createProgram(gl, vertexShader, fragmentShader) {
+            const program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                console.error('Program error:', gl.getProgramInfoLog(program));
+                gl.deleteProgram(program);
+                return null;
+            }
+            return program;
+        }
+        
+        // Initialize shaders
+        const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+        const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+        const program = createProgram(gl, vertexShader, fragmentShader);
+        
+        // Buffer setup
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+        
+        // Get uniform locations
+        const uniforms = {
+            position: gl.getAttribLocation(program, 'position'),
+            time: gl.getUniformLocation(program, 'time'),
+            resolution: gl.getUniformLocation(program, 'resolution'),
+            iterations: gl.getUniformLocation(program, 'iterations'),
+            zoom: gl.getUniformLocation(program, 'zoom'),
+            offset: gl.getUniformLocation(program, 'offset'),
+            colorScheme: gl.getUniformLocation(program, 'colorScheme'),
+            fractalType: gl.getUniformLocation(program, 'fractalType'),
+            juliaC: gl.getUniformLocation(program, 'juliaC')
+        };
+        
+        // Canvas resize
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            gl.viewport(0, 0, canvas.width, canvas.height);
+        }
+        resize();
+        window.addEventListener('resize', resize);
+        
+        // Mouse controls
+        let mouseDown = false;
+        let lastMouse = { x: 0, y: 0 };
+        
+        canvas.addEventListener('mousedown', () => mouseDown = true);
+        canvas.addEventListener('mouseup', () => mouseDown = false);
+        canvas.addEventListener('mousemove', (e) => {
+            if (mouseDown) {
+                const deltaX = e.clientX - lastMouse.x;
+                const deltaY = e.clientY - lastMouse.y;
+                params.offsetX -= deltaX / window.innerWidth / params.zoom * 3;
+                params.offsetY += deltaY / window.innerHeight / params.zoom * 3;
+                updatePosition();
+            }
+            lastMouse.x = e.clientX;
+            lastMouse.y = e.clientY;
+        });
+        
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomFactor = 1 - e.deltaY * 0.001;
+            params.zoom *= zoomFactor;
+            params.zoom = Math.max(0.1, Math.min(1e10, params.zoom));
+            document.getElementById('zoom').textContent = params.zoom.toExponential(1);
+        });
+        
+        // Control handlers
+        document.getElementById('ctrl-type').addEventListener('change', (e) => {
+            params.type = e.target.value;
+        });
+        
+        document.getElementById('ctrl-iterations').addEventListener('input', (e) => {
+            params.iterations = parseFloat(e.target.value);
+        });
+        
+        document.getElementById('ctrl-color').addEventListener('change', (e) => {
+            params.colorScheme = parseInt(e.target.value);
+        });
+        
+        document.getElementById('ctrl-speed').addEventListener('input', (e) => {
+            params.speed = parseFloat(e.target.value);
+        });
+        
+        function updatePosition() {
+            document.getElementById('posX').textContent = params.offsetX.toFixed(6);
+            document.getElementById('posY').textContent = params.offsetY.toFixed(6);
+        }
+        
+        // Export functions
+        function exportImage(width, height, free = false) {
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = width;
+            exportCanvas.height = height;
+            const exportGl = exportCanvas.getContext('webgl', { preserveDrawingBuffer: true });
+            
+            // Clone the entire rendering setup for export
+            const exportProgram = createProgram(exportGl, 
+                createShader(exportGl, exportGl.VERTEX_SHADER, vertexShaderSource),
+                createShader(exportGl, exportGl.FRAGMENT_SHADER, fragmentShaderSource)
+            );
+            
+            const exportBuffer = exportGl.createBuffer();
+            exportGl.bindBuffer(exportGl.ARRAY_BUFFER, exportBuffer);
+            exportGl.bufferData(exportGl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), exportGl.STATIC_DRAW);
+            
+            // Render at high resolution
+            exportGl.viewport(0, 0, width, height);
+            exportGl.clearColor(0, 0, 0, 1);
+            exportGl.clear(exportGl.COLOR_BUFFER_BIT);
+            exportGl.useProgram(exportProgram);
+            
+            // Set uniforms for export
+            const exportUniforms = {
+                position: exportGl.getAttribLocation(exportProgram, 'position'),
+                time: exportGl.getUniformLocation(exportProgram, 'time'),
+                resolution: exportGl.getUniformLocation(exportProgram, 'resolution'),
+                iterations: exportGl.getUniformLocation(exportProgram, 'iterations'),
+                zoom: exportGl.getUniformLocation(exportProgram, 'zoom'),
+                offset: exportGl.getUniformLocation(exportProgram, 'offset'),
+                colorScheme: exportGl.getUniformLocation(exportProgram, 'colorScheme'),
+                fractalType: exportGl.getUniformLocation(exportProgram, 'fractalType'),
+                juliaC: exportGl.getUniformLocation(exportProgram, 'juliaC')
+            };
+            
+            exportGl.uniform1f(exportUniforms.time, params.time);
+            exportGl.uniform2f(exportUniforms.resolution, width, height);
+            exportGl.uniform1f(exportUniforms.iterations, params.iterations);
+            exportGl.uniform1f(exportUniforms.zoom, params.zoom);
+            exportGl.uniform2f(exportUniforms.offset, params.offsetX, params.offsetY);
+            exportGl.uniform1i(exportUniforms.colorScheme, params.colorScheme);
+            exportGl.uniform1i(exportUniforms.fractalType, getFractalType());
+            exportGl.uniform2f(exportUniforms.juliaC, params.juliaC.x, params.juliaC.y);
+            
+            exportGl.bindBuffer(exportGl.ARRAY_BUFFER, exportBuffer);
+            exportGl.enableVertexAttribArray(exportUniforms.position);
+            exportGl.vertexAttribPointer(exportUniforms.position, 2, exportGl.FLOAT, false, 0, 0);
+            exportGl.drawArrays(exportGl.TRIANGLE_STRIP, 0, 4);
+            
+            // Add watermark for free version
+            if (free) {
+                const ctx = exportCanvas.getContext('2d');
+                ctx.drawImage(exportCanvas, 0, 0);
+                ctx.font = '20px Arial';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.fillText('QuantumFractal.Studio - Free Version', 10, height - 10);
+            }
+            
+            // Download
+            exportCanvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `quantum-fractal-${width}x${height}-${Date.now()}.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        }
+        
+        function showPremiumModal(type) {
+            currentExportType = type;
+            const modal = document.getElementById('exportModal');
+            const desc = document.getElementById('exportDescription');
+            const price = document.getElementById('exportPrice');
+            
+            if (type === '4k') {
+                desc.textContent = 'Export in stunning 4K resolution (3840x2160) without watermark';
+                price.textContent = '$4.99';
+            } else if (type === '8k') {
+                desc.textContent = 'Export in ultra-high 8K resolution (7680x4320) without watermark';
+                price.textContent = '$9.99';
+            } else if (type === 'nft') {
+                desc.textContent = 'Mint as unique NFT with certificate of authenticity and metadata';
+                price.textContent = '$19.99';
+            }
+            
+            modal.style.display = 'block';
+        }
+        
+        function closeModal() {
+            document.getElementById('exportModal').style.display = 'none';
+        }
+        
+        function processPremiumExport() {
+            alert('Payment integration would go here. For demo, downloading watermark-free version...');
+            closeModal();
+            
+            if (currentExportType === '4k') {
+                exportImage(3840, 2160, false);
+            } else if (currentExportType === '8k') {
+                exportImage(7680, 4320, false);
+            } else if (currentExportType === 'nft') {
+                alert('NFT minting would integrate with Web3 wallet here');
+            }
+        }
+        
+        function getFractalType() {
+            switch(params.type) {
+                case 'mandelbrot': return 0;
+                case 'julia': return 1;
+                case 'burning': return 2;
+                case 'quantum': return 3;
+                default: return 0;
+            }
+        }
+        
+        // Animation loop
+        let lastTime = 0;
+        let frameCount = 0;
+        
+        function render(currentTime) {
+            frameCount++;
+            if (currentTime - lastTime > 1000) {
+                document.getElementById('fps').textContent = Math.round(frameCount * 1000 / (currentTime - lastTime));
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+            
+            params.time += 0.016 * params.speed;
+            
+            // Update Julia set parameter
+            params.juliaC.x = -0.7 + Math.sin(params.time * 0.1) * 0.1;
+            params.juliaC.y = 0.27015 + Math.cos(params.time * 0.1) * 0.1;
+            
+            gl.clearColor(0, 0, 0, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.useProgram(program);
+            
+            gl.uniform1f(uniforms.time, params.time);
+            gl.uniform2f(uniforms.resolution, canvas.width, canvas.height);
+            gl.uniform1f(uniforms.iterations, params.iterations);
+            gl.uniform1f(uniforms.zoom, params.zoom);
+            gl.uniform2f(uniforms.offset, params.offsetX, params.offsetY);
+            gl.uniform1i(uniforms.colorScheme, params.colorScheme);
+            gl.uniform1i(uniforms.fractalType, getFractalType());
+            gl.uniform2f(uniforms.juliaC, params.juliaC.x, params.juliaC.y);
+            
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            gl.enableVertexAttribArray(uniforms.position);
+            gl.vertexAttribPointer(uniforms.position, 2, gl.FLOAT, false, 0, 0);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            
+            requestAnimationFrame(render);
+        }
+        
+        render(0);
+    </script>
+</body>
+</html>
