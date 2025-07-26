@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug - Quantum Fractal Visualizer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #222;
+            color: white;
+            font-family: monospace;
+        }
+        canvas {
+            border: 1px solid #444;
+            display: block;
+            margin: 20px 0;
+        }
+        #log {
+            background: #111;
+            padding: 10px;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Debug Mode</h1>
+    <div id="log"></div>
+    <canvas id="canvas"></canvas>
+    
+    <script type="module">
+        const log = (msg) => {
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML += msg + '<br>';
+            console.log(msg);
+        };
+
+        // Test basic WebGL
+        const canvas = document.getElementById('canvas');
+        canvas.width = 800;
+        canvas.height = 600;
+        
+        try {
+            const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+            if (!gl) {
+                log('ERROR: WebGL not supported');
+                throw new Error('WebGL not supported');
+            }
+            log('✓ WebGL context created');
+            
+            // Simple vertex shader
+            const vsSource = `
+                attribute vec4 position;
+                void main() {
+                    gl_Position = position;
+                }
+            `;
+            
+            // Simple fragment shader that should show red
+            const fsSource = `
+                precision mediump float;
+                void main() {
+                    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+                }
+            `;
+            
+            // Compile shaders
+            const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+            gl.shaderSource(vertexShader, vsSource);
+            gl.compileShader(vertexShader);
+            
+            if (!gl.getShaderParameter(vertexShader, gl.COMPILE_STATUS)) {
+                log('ERROR: Vertex shader compilation failed: ' + gl.getShaderInfoLog(vertexShader));
+                throw new Error('Vertex shader compilation failed');
+            }
+            log('✓ Vertex shader compiled');
+            
+            const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+            gl.shaderSource(fragmentShader, fsSource);
+            gl.compileShader(fragmentShader);
+            
+            if (!gl.getShaderParameter(fragmentShader, gl.COMPILE_STATUS)) {
+                log('ERROR: Fragment shader compilation failed: ' + gl.getShaderInfoLog(fragmentShader));
+                throw new Error('Fragment shader compilation failed');
+            }
+            log('✓ Fragment shader compiled');
+            
+            // Create program
+            const program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+            
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                log('ERROR: Program linking failed: ' + gl.getProgramInfoLog(program));
+                throw new Error('Program linking failed');
+            }
+            log('✓ Shader program linked');
+            
+            // Create triangle
+            const positions = new Float32Array([
+                0.0,  0.5,
+               -0.5, -0.5,
+                0.5, -0.5
+            ]);
+            
+            const buffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+            
+            const positionLoc = gl.getAttribLocation(program, 'position');
+            gl.enableVertexAttribArray(positionLoc);
+            gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+            
+            // Draw
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.useProgram(program);
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+            
+            log('✓ Red triangle should be visible above');
+            
+            // Now test Three.js
+            import('https://unpkg.com/three@0.160.0/build/three.module.js').then(THREE => {
+                log('✓ Three.js loaded');
+                
+                // Test fractal calculation
+                function testMandelbrot() {
+                    const c = { re: -0.5, im: 0.0 };
+                    let z = { re: 0, im: 0 };
+                    let n = 0;
+                    const maxIter = 100;
+                    
+                    while (n < maxIter) {
+                        const re2 = z.re * z.re;
+                        const im2 = z.im * z.im;
+                        
+                        if (re2 + im2 > 4.0) break;
+                        
+                        z = {
+                            re: re2 - im2 + c.re,
+                            im: 2.0 * z.re * z.im + c.im
+                        };
+                        n++;
+                    }
+                    
+                    log(`✓ Mandelbrot test: iterations=${n} (should be 100 for c=-0.5+0i)`);
+                }
+                testMandelbrot();
+                
+                // Load main app
+                log('Loading main application...');
+                window.location.href = '/test-simple.html';
+                
+            }).catch(err => {
+                log('ERROR loading Three.js: ' + err);
+            });
+            
+        } catch (err) {
+            log('ERROR: ' + err.message);
+        }
+    </script>
+</body>
+</html>

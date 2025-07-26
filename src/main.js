@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GUI } from 'dat.gui';
 import { QuantumFractalEngine } from './quantum-fractal-engine.js';
 import { AudioReactive } from './audio-reactive.js';
-import { shaderCode } from './shaders.js';
+import { shaderCode } from './shaders-simple.js';
 
 class QuantumFractalVisualizer {
     constructor() {
@@ -56,8 +56,7 @@ class QuantumFractalVisualizer {
                 quantumPhase: { value: this.params.quantumPhase },
                 dimensionShift: { value: this.params.dimensionShift },
                 chaosParameter: { value: this.params.chaosParameter },
-                audioLevel: { value: 0.0 },
-                frequencyData: { value: new Array(128).fill(0.0) }
+                audioLevel: { value: 0.0 }
             },
             vertexShader: shaderCode.vertex,
             fragmentShader: shaderCode.fragment,
