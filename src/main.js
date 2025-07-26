@@ -31,12 +31,14 @@ class QuantumFractalVisualizer {
         
         this.init();
         this.setupGUI();
+        this.updateUI();
         this.animate();
     }
     
     init() {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setClearColor(0x000000, 1);
         document.getElementById('canvas-container').appendChild(this.renderer.domElement);
         
         this.camera.position.z = 2;
@@ -55,7 +57,7 @@ class QuantumFractalVisualizer {
                 dimensionShift: { value: this.params.dimensionShift },
                 chaosParameter: { value: this.params.chaosParameter },
                 audioLevel: { value: 0.0 },
-                frequencyData: { value: new Float32Array(128) }
+                frequencyData: { value: new Array(128).fill(0.0) }
             },
             vertexShader: shaderCode.vertex,
             fragmentShader: shaderCode.fragment,
@@ -123,6 +125,11 @@ class QuantumFractalVisualizer {
         
         gui.add(this.params, 'rotationSpeed', -0.1, 0.1);
         gui.add(this.params, 'symmetry', 1, 12, 1);
+    }
+    
+    updateUI() {
+        document.getElementById('iterations').textContent = this.params.iterations;
+        document.getElementById('dimension').textContent = this.params.dimensionShift.toFixed(3);
     }
     
     onWindowResize() {

@@ -194,7 +194,14 @@ export const shaderCode = {
             float freqModulation = 0.0;
             if (audioLevel > 0.01) {
                 int freqIndex = int(vUv.x * 127.0);
-                freqModulation = frequencyData[freqIndex] / 255.0;
+                if (freqIndex >= 0 && freqIndex < 128) {
+                    for (int i = 0; i < 128; i++) {
+                        if (i == freqIndex) {
+                            freqModulation = frequencyData[i] / 255.0;
+                            break;
+                        }
+                    }
+                }
                 coord += vec2(sin(time + freqModulation), cos(time + freqModulation)) * audioLevel * 0.1;
             }
             
